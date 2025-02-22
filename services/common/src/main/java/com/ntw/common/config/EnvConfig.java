@@ -1,0 +1,82 @@
+//////////////////////////////////////////////////////////////////////////////
+// Copyright 2020 Anurag Yadav (anurag.yadav@newtechways.com)               //
+//                                                                          //
+// Licensed under the Apache License, Version 2.0 (the "License");          //
+// you may not use this file except in compliance with the License.         //
+// You may obtain a copy of the License at                                  //
+//                                                                          //
+//     http://www.apache.org/licenses/LICENSE-2.0                           //
+//                                                                          //
+// Unless required by applicable law or agreed to in writing, software      //
+// distributed under the License is distributed on an "AS IS" BASIS,        //
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. //
+// See the License for the specific language governing permissions and      //
+// limitations under the License.                                           //
+//////////////////////////////////////////////////////////////////////////////
+
+package com.ntw.common.config;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.*;
+
+/**
+ * Created by anurag on 09/07/18.
+ */
+public class EnvConfig {
+
+    private static final String USE_SERVICE_REGISTRY = "eureka.client.registerWithEureka";
+
+    private static final Logger logger = LoggerFactory.getLogger(EnvConfig.class);
+
+    private static Properties properties = new Properties();
+    private static final String PROP_FILE_NAME = "config";
+
+    private Environment environment;
+
+    public EnvConfig(Environment environment) {
+        this.environment = environment;
+        logEnv();
+    }
+
+    public Environment getEnvironment() {
+        return environment;
+    }
+
+    public void logEnv() {
+        String propFileName = PROP_FILE_NAME+".properties";
+        try (InputStream in = EnvConfig.class.getClassLoader().getResourceAsStream(propFileName)) {
+            if (in != null) {
+                properties.load(in);
+            } else {
+                logger.error("Unable to read {} file",propFileName);
+            }
+        } catch (IOException e1) {
+            logger.error("Unable to read "+propFileName+" file");
+            logger.debug(e1.getStackTrace().toString());
+        }
+
+        SortedSet<String> envKeys = new TreeSet<>();
+        properties.stringPropertyNames().forEach(key -> envKeys.add(key));
+        String[] otherEnv = {"server.log.level", "server.log.path",
+                "eureka.client.fetchRegistry", "eureka.client.registerWithEureka",
+                "spring.config.name", "spring.profiles.active"};
+        envKeys.addAll(Arrays.asList(otherEnv));
+
+        Map<String, String> envMap = new LinkedHashMap<>();
+        envKeys.forEach(key -> envMap.put(key, environment.getProperty(key)));
+
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        logger.info("Environment & System Variables = {}", gson.toJson(envMap));
+    }
+
+    public String getProperty(String key) {
+        return environment.getProperty(key);
+    }
+}
