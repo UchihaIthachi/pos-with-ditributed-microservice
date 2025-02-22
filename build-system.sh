@@ -1,12 +1,26 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 export OMS_ROOT=`pwd`
 
-source ./bin/common.sh
+#cd $OMS_ROOT
+
+TARGET=$1
+
+echo "-- Start --"
+
+function verify_success {
+    if [ $1 == 0 ]; then
+	echo "-- Build succeeded for $2 --"
+    else
+	echo "-- Build failed for $2. Exiting! --"
+	exit -1;
+    fi
+}
 
 echo "--- Verify system and tools ---"
+
 ./bin/verify-system.sh
-verify_success $?
+verify_success $? "operating system verification"
 
 ./bin/verify-build-tools.sh
 verify_success $? "build tools installation verification"
@@ -14,19 +28,21 @@ verify_success $? "build tools installation verification"
 echo "--- Verification Done!! ---"
 
 
-function do_clean {
+############################## Clean ####################################
 
-    cd $OMS_ROOT
+function do_clean {
     echo "-- Clean --"
-    for component in "services" "web" "spa" "tests"; do
-	cd $component
-	./build.sh clean
-	cd ..
-    done
+    cd $OMS_ROOT/services
+    mvn clean
+    verify_success $? "services clean"
+    
+    cd $OMS_ROOT/tests/jmeter
+    rm -f *.csv
+    verify_success $? "jmeter clean"
 
     if [ "$1" == "all" ]; then
 	cd $OMS_ROOT/staging
-	rm -rf services web spa schema tests
+	rm -rf services web registry tests
 	verify_success $? "staging clean"
 	
 	cd $OMS_ROOT/docker/bin
@@ -40,97 +56,134 @@ function do_clean {
 }
 
 
+############################## Build ####################################
+
 function do_build {
 
-    component=$1
+    echo "-- Build --"
 
-    if [ -z "$component" ]; then
-	for this_component in "services" "web" "spa" "tests"; do
-	    cd $OMS_ROOT/$this_component
-	    ./build.sh build
-	    cd ..
-	done
+    if [ -z "$2" ]; then
+	
+	do_build_services
+
+	do_create_test_data
+	
+	do_build_web
+
+	do_build_spa
+    
     else
-	if [ $(is_a_component $component) == "true" ]; then
-	    cd $OMS_ROOT/$component
-	    ./build.sh
-	    verify_success $? "$component build"
-	    cd ..
+
+	if [ "$2" == "web" ]; then
+	    do_build_web
+	elif [ "$2" == "services" ]; then
+	    do_build_services
+	elif [ "$2" == "service" ] && [ -n "$3" ]; then
+	    do_build_service $3
 	else
-	    if [ $(is_a_service $component) == "true" ]; then
-		cd $OMS_ROOT/services
-		./build.sh build $component
-		component="services"
-	    else
-		echo "Error: Incorrect component name $1 to build"
-		exit 1
-	    fi
+	    echo "Wrong set of parameters"
 	fi
+
     fi
-    do_stage $component
+	
+    echo "-- Done --"
 }
 
+function do_create_test_data {
+    cd $OMS_ROOT/tests/jmeter
+    ./create-data.sh
+    verify_success $? "jmeter test data"
+}
+
+function do_build_web {
+    cd $OMS_ROOT/web
+    ./create-build.sh
+    verify_success $? "web zip"
+}    
+
+function do_build_spa {
+    cd $OMS_ROOT/spa
+    ./create-build.sh
+    verify_success $? "spa"
+}    
+
+function do_build_services {
+    cd $OMS_ROOT/services
+    mvn package
+    verify_success $? "services"
+}
+
+function do_build_service {
+    cd $OMS_ROOT/services/$1
+    mvn package
+    verify_success $? "service $1"
+    cp ./target/*.war ../target
+}
+
+
+############################## Staging ####################################
 
 function do_stage {
     echo "-- Pull artifacts to Staging --"
     cd $OMS_ROOT/staging/bin
-    ./pull-artifacts.sh $1
+    ./pull-artifacts.sh
     verify_success $? "staging pull artifacts"
+
+    echo "-- Done --"
 }
 
 
+
+############################## Images ####################################
+
 function do_images {
-
     echo "-- Check if docker daemon is running --"
-    cd $OMS_ROOT/docker/bin
-    ./verify-docker-install.sh
-    verify_success $? "docker install verification"
+    docker version
+    if [ $? == 0 ]; then
+	echo "Docker daemon installed and running"
+    elif [ $? == 1 ]; then
+	echo "Build failed -- Docker daemon installed but not running"
+	exit -1;
+    else
+	echo "Build failed -- Docker daemon not installed"
+	exit -1;
+    fi
 
+    echo "-- Pull all build artifacts to staging area --"
+    do_stage
+    
     echo "-- Pull artifacts from Staging to Docker images dir --"
     cd $OMS_ROOT/docker/bin
-    ./pull-artifacts.sh $1
+    ./pull-artifacts.sh
     verify_success $? "docker pull artifacts"
 
     echo "-- Build Docker Images --"
     cd $OMS_ROOT/docker
-    if [ -z "$1" ]; then
-	docker-compose build
-	verify_success $? "All docker images"
-    elif [ "$1" == "services" ]; then
-	for service in ${services[@]}; do
-	    docker-compose build $service
-	done
-    else
-	docker-compose build $1
-	verify_success $? "$1 docker image"
-    fi
+    docker-compose build $1
+    verify_success $? "docker build $1"
 
-    if [ -z "$1" ] || [ "$1" == "tests" ]; then
-	cd $OMS_ROOT/docker/jmeter
-	docker-compose build
-    fi
+    cd $OMS_ROOT/docker/jmeter
+    docker-compose build
+    verify_success $? "docker jmater build"
 
-    docker images | head -1
-    docker images | grep "ntw/"
+    echo "-- Done --"
 }
 
-
-#----------------Main-------------------
-
-if [ "$1" == "clean" ]; then
+if [ "$TARGET" == "clean" ]; then
     do_clean $2
-elif [ "$1" == "build" ]; then
-    do_build $2
-elif [ "$1" == "stage" ]; then
-    do_stage $2
-elif [ "$1" == "images" ]; then
+elif [ "$TARGET" == "build" ]; then
+    do_build $1 $2 $3
+elif [ "$TARGET" == "stage" ]; then
+    do_stage
+elif [ "$TARGET" == "images" ]; then
     do_images $2
 else
-    read -p "Do you wish to do complete build [Y/n]: " yn
+    read -p "Do you wish to do complete build (y/n): " yn
     case $yn in
+        [Yy]* ) do_clean; do_build; do_stage; do_images; break;;
         [Nn]* ) exit;;
-    esac
-    do_clean; do_build; do_images;
+        * ) do_clean; do_build; do_stage; do_images;;
+    esac    
 fi
     
 echo "-- Done --"

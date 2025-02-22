@@ -17,9 +17,9 @@
 package com.ntw.common.config;
 
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 
 import java.io.IOException;
@@ -40,18 +40,24 @@ public class EnvConfig {
 
     private Environment environment;
 
-    public EnvConfig(Environment environment) {
-        this.environment = environment;
-        logEnv();
-    }
-
     public Environment getEnvironment() {
         return environment;
     }
 
-    public void logEnv() {
+    public void setEnvironment(Environment environment) {
+        this.environment = environment;
+    }
+
+    public EnvConfig() {
+        initialize();
+    }
+
+    public void initialize() {
+
         String propFileName = PROP_FILE_NAME+".properties";
-        try (InputStream in = EnvConfig.class.getClassLoader().getResourceAsStream(propFileName)) {
+
+        try {
+            InputStream in = EnvConfig.class.getClassLoader().getResourceAsStream(propFileName);
             if (in != null) {
                 properties.load(in);
             } else {
@@ -61,22 +67,28 @@ public class EnvConfig {
             logger.error("Unable to read "+propFileName+" file");
             logger.debug(e1.getStackTrace().toString());
         }
+        System.getProperties().stringPropertyNames().
+                forEach(key -> {if(properties.containsKey(key)) properties.setProperty(key, System.getProperty(key));});
+        System.getenv().keySet().
+                forEach(key -> {if(properties.containsKey(key)) properties.setProperty(key, System.getenv(key));});
+        String[] otherEnv = {"server.log.level", "server.log.path"};
+        for (String key : otherEnv) {
+            if (System.getenv(key) != null) {
+                properties.setProperty(key, System.getenv(key));
+            }
+        }
+        Map<String, String> envLog = new HashMap<>();
+        SortedSet<String> sortedProps = new TreeSet<>();
+        sortedProps.addAll(properties.stringPropertyNames());
+        sortedProps.forEach(x -> envLog.put(x,properties.getProperty(x)));
+        logger.info("Environment & System Variables = {}",new Gson().toJson(envLog));
+    }
 
-        SortedSet<String> envKeys = new TreeSet<>();
-        properties.stringPropertyNames().forEach(key -> envKeys.add(key));
-        String[] otherEnv = {"server.log.level", "server.log.path",
-                "eureka.client.fetchRegistry", "eureka.client.registerWithEureka",
-                "spring.config.name", "spring.profiles.active"};
-        envKeys.addAll(Arrays.asList(otherEnv));
-
-        Map<String, String> envMap = new LinkedHashMap<>();
-        envKeys.forEach(key -> envMap.put(key, environment.getProperty(key)));
-
-        Gson gson = new GsonBuilder().setPrettyPrinting().create();
-        logger.info("Environment & System Variables = {}", gson.toJson(envMap));
+    public boolean useServiceRegistry() {
+        return Boolean.parseBoolean(properties.getProperty(USE_SERVICE_REGISTRY));
     }
 
     public String getProperty(String key) {
-        return environment.getProperty(key);
+        return properties.getProperty(key);
     }
 }

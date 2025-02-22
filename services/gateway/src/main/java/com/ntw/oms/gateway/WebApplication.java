@@ -20,44 +20,75 @@ package com.ntw.oms.gateway;
  * Created by anurag on 17/08/19.
  */
 import com.ntw.common.config.EnvConfig;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.ntw.oms.gateway.filter.AuthenticationFilter;
+import com.ntw.oms.gateway.filter.RequestFilter;
+import com.ntw.oms.gateway.filter.ResponseFilter;
+import org.eclipse.jetty.util.thread.QueuedThreadPool;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.boot.web.embedded.jetty.JettyServletWebServerFactory;
+import org.springframework.boot.web.servlet.server.ConfigurableServletWebServerFactory;
+import org.springframework.boot.web.servlet.support.SpringBootServletInitializer;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+import org.springframework.cloud.netflix.zuul.EnableZuulProxy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.core.env.Environment;
 
 @SpringBootApplication
 @EnableDiscoveryClient
+@EnableZuulProxy
 @PropertySource(value = { "classpath:config.properties" })
-public class WebApplication {
-
-    @Autowired
-    private Environment environment;
-
+public class WebApplication extends SpringBootServletInitializer {
     public static void main(String[] args) {
         SpringApplication.run(WebApplication.class, args);
     }
 
-    @Bean
-    public EnvConfig envConfig() throws Exception {
-        // Added this bean to view env vars on console/log
-        EnvConfig envConfig = new EnvConfig(environment);
-        String configName = envConfig.getProperty("spring.config.name");
-        if ( configName == null || !configName.equals("config")) {
-            throw new Exception("ERROR: To read routes specify java property -Dspring.config.name=config " +
-                    "or set it as an environment variable. Aborting!!!");
-        }
-        return envConfig;
+    @Override
+    protected SpringApplicationBuilder configure(SpringApplicationBuilder builder) {
+        return builder.sources(WebApplication.class);
     }
 
     @Bean
-    @ConditionalOnProperty(value="opentracing.jaeger.enabled", havingValue="false", matchIfMissing=false)
-    public io.opentracing.Tracer jaegerTracer() {
-        // This bean is a workaround to avoid service name exception when jaeger tracing is disabled
-        return io.opentracing.noop.NoopTracerFactory.create();
+    public ConfigurableServletWebServerFactory webServerFactory(
+            @Value("${server.port:8080}") int port,
+            @Value("${server.threadPool.threads.minimum:1}") int minThreadCount,
+            @Value("${server.threadPool.threads.maximum:10}") int maxThreadCount,
+            @Value("${server.threadPool.threads.idleTime:60000}") int idleThreadTimeout
+    ) {
+        JettyServletWebServerFactory factory = new JettyServletWebServerFactory();
+        factory.setPort(port);
+        QueuedThreadPool threadPool = new QueuedThreadPool();
+        threadPool.setMinThreads(minThreadCount);
+        threadPool.setMaxThreads(maxThreadCount);
+        threadPool.setIdleTimeout(idleThreadTimeout);
+        factory.setThreadPool(threadPool);
+        return factory;
+    }
+
+    @Bean
+    public RequestFilter requestFilter() {
+        return new RequestFilter();
+    }
+
+    @Bean
+    public AuthenticationFilter authenticationFilter() {
+        return new AuthenticationFilter();
+    }
+
+    @Bean
+    ResponseFilter responseFilter() {
+        return new ResponseFilter();
+    }
+
+    @Bean
+    public EnvConfig envConfig(Environment environment) {
+        // Added this bean to view env vars on console/log
+        EnvConfig envConfigBean = new EnvConfig();
+        envConfigBean.setEnvironment(environment);
+        return envConfigBean;
     }
 
 }

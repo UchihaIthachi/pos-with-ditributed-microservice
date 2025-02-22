@@ -7,13 +7,11 @@ import java.io.Serializable;
 public class ServiceStatus implements Serializable {
     private String serviceId;
     private String serviceHost;
-    private int servicePort;
     private String serviceTime;
 
     public ServiceStatus() {
         this.serviceId = "Uninitialized";
         this.serviceHost = "Not Attempted";
-        this.servicePort = 0;
         this.serviceTime = "Not Attempted";
     }
 
@@ -38,14 +36,6 @@ public class ServiceStatus implements Serializable {
         this.serviceHost = serviceHost;
     }
 
-    public int getServicePort() {
-        return servicePort;
-    }
-
-    public void setServicePort(int servicePort) {
-        this.servicePort = servicePort;
-    }
-
     public String getServiceTime() {
         return serviceTime;
     }
@@ -63,7 +53,6 @@ public class ServiceStatus implements Serializable {
         return "{" +
                 "\"serviceId\":" + (serviceId == null ? "null" : "\"" + serviceId + "\"") + ", " +
                 "\"serviceHost\":" + (serviceHost == null ? "null" : "\"" + serviceHost + "\"") + ", " +
-                "\"servicePort\":" + servicePort + ", " +
                 "\"serviceTime\":" + (serviceTime == null ? "null" : "\"" + serviceTime + "\"") +
                 "}";
     }

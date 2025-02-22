@@ -27,6 +27,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Created by anurag on 24/03/17.
@@ -71,30 +72,7 @@ public class DBProductDao implements ProductDao {
     }
 
     @Override
-    public List<String> getProductIds() {
-        String allProductIdsSql = "select id from Product";
-        List<String> productIds;
-        try {
-            productIds = jdbcTemplate.queryForList(allProductIdsSql, String.class);
-        } catch (Exception e) {
-            logger.error("Exception fetching products: ", e);
-            return new LinkedList<>();
-        }
-        if (productIds.isEmpty()) {
-            logger.error("Unable to get Products; context={}", allProductIdsSql);
-            return new LinkedList<>();
-        }
-        logger.debug("Fetched {} products", productIds.size());
-        logger.debug("Fetched products; context={}", productIds);
-
-        return productIds;
-    }
-
-    @Override
     public List<Product> getProducts(List<String> ids) {
-        if (ids == null || ids.isEmpty()) {
-            return new LinkedList<>();
-        }
         StringBuilder productSql = new StringBuilder("select * from product where id IN ");
         productSql.append("(");
         int i=0;

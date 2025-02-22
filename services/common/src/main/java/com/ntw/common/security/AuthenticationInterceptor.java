@@ -82,10 +82,8 @@ public class AuthenticationInterceptor extends HandlerInterceptorAdapter {
         String authToken = authHeader.substring("Bearer".length()).trim();
 
         JwtUtility jwtUtility = new JJwtUtility();
-        UserAuth userAuth = null;
-        if (!authToken.isEmpty()) {
-            userAuth = jwtUtility.parseToken(authToken);
-        }
+        UserAuth userAuth = jwtUtility.parseToken(authToken);
+
         return userAuth;
     }
 

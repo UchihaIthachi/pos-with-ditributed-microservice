@@ -27,7 +27,7 @@ import java.util.List;
 /**
  * Created by anurag on 30/05/17.
  */
-@Table("userprofile")
+@Table("UserProfile")
 public class DBUserProfile {
 
     @PrimaryKey

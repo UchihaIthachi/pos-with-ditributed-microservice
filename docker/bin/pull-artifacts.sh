@@ -4,52 +4,30 @@ OMS_ROOT=../..
 OMS_STAGING=$OMS_ROOT/staging
 OMS_DEPLOY=$OMS_ROOT/docker
 
-source $OMS_ROOT/bin/common.sh
+echo Copy PyUI to web
+cp $OMS_STAGING/web/PyUI.tar.gz $OMS_DEPLOY/web/image
 
-function verify_success {
-    if [ $1 == 0 ]; then
-	echo "-- Copied $2 from staging --"
-    else
-	echo "-- Error: Copy failed for $2. Exiting! --"
-	exit -1;
-    fi
-}
+echo Copy react app to spa
+cp $OMS_STAGING/spa/reactapp.tar.gz $OMS_DEPLOY/spa/image
 
-if [ -z "$1" ] || [ "$1" == "web" ]; then
-    cp -u $OMS_STAGING/web/PyUI.tar.gz $OMS_DEPLOY/web/image
-    verify_success $? "web build"
-    cp -u $OMS_STAGING/web/PyUI.tar.gz $OMS_DEPLOY/lb-web/image
-    verify_success $? "lb web build"
-fi
+echo Copy PyUI to lb-web
+cp $OMS_STAGING/web/PyUI.tar.gz $OMS_DEPLOY/lb-web/image
 
-if [ -z "$1" ] || [ "$1" == "spa" ]; then
-    cp -u $OMS_STAGING/spa/reactapp.tar.gz $OMS_DEPLOY/spa/image
-    verify_success $? "spa build"
-fi
+echo Copy create-schema.sql to postgres
+cp $OMS_STAGING/schema/*.sql $OMS_DEPLOY/postgres/image
 
+echo Copy Services war files
+test -d $OMS_DEPLOY/services/image/war || mkdir -p $OMS_DEPLOY/services/image/war && \
+	cp $OMS_STAGING/services/*.war $OMS_DEPLOY/services/image/war
 
-if [ -z "$1" ] || [ "$1" == "schema" ]; then
-    cp -u $OMS_STAGING/schema/*.sql $OMS_DEPLOY/postgres/image
-    verify_success $? "schema files"
-fi
+echo Copy Eureka Server war file
+test -d $OMS_DEPLOY/eureka/image || mkdir -p $OMS_DEPLOY/eureka/image && \
+	cp $OMS_STAGING/registry/discovery.jar $OMS_DEPLOY/eureka/image
 
-if [ -z "$1" ] || [ "$1" == "services" ]; then
-    test -d $OMS_DEPLOY/services/image/war || mkdir -p $OMS_DEPLOY/services/image/war && \
-	    cp -u $OMS_STAGING/services/*.war $OMS_DEPLOY/services/image/war
-    verify_success $? "services build"
-fi
+echo Copy Jmeter test files
+test -d $OMS_DEPLOY/jmeter/image/tests || mkdir -p $OMS_DEPLOY/jmeter/image/tests && \
+	cp $OMS_STAGING/tests/* $OMS_DEPLOY/jmeter/image/tests
+test -d $OMS_DEPLOY/ubuntux/image/tests || mkdir -p $OMS_DEPLOY/ubuntux/image/tests && \
+	cp $OMS_STAGING/tests/* $OMS_DEPLOY/ubuntux/image/tests
 
-if [ $(is_a_service "$1") == "true" ]; then
-    test -d $OMS_DEPLOY/services/image/war || mkdir -p $OMS_DEPLOY/services/image/war && \
-	    cp -u $OMS_STAGING/services/$1.war $OMS_DEPLOY/services/image/war
-    verify_success $? "$1 service build"
-fi    
-
-if [ -z "$1" ] || [ "$1" == "tests" ]; then
-    test -d $OMS_DEPLOY/jmeter/image/tests || mkdir -p $OMS_DEPLOY/jmeter/image/tests && \
-	    cp -u $OMS_STAGING/tests/* $OMS_DEPLOY/jmeter/image/tests
-    verify_success $? "jmeter files"
-    test -d $OMS_DEPLOY/ubuntux/image/tests || mkdir -p $OMS_DEPLOY/ubuntux/image/tests && \
-	    cp -u $OMS_STAGING/tests/* $OMS_DEPLOY/ubuntux/image/tests
-    verify_success $? "ubuntux files"
-fi
+echo Done!!

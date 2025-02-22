@@ -20,10 +20,5 @@ if [ -n "$ERROR_MESSAGE" ]; then
     echo "################# WARNING ###############"
     echo $ERROR_MESSAGE
     echo "#########################################"
-    read -p "Do you want to continue [Y/n]? " yn
-    case $yn in
-	[Nn]* ) exit 1;;
-    esac
+    exit -1
 fi
-
-exit 0

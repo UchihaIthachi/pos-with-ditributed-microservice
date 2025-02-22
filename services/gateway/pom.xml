@@ -11,12 +11,11 @@
   <properties>
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>
-    <jdk.version>11</jdk.version>
     <oms.version>1.0-SNAPSHOT</oms.version>
     <servletapi.version>4.0.1</servletapi.version>
-    <spring.cloud.version>3.1.6</spring.cloud.version>
-    <circuitbreaker.version>2.1.2</circuitbreaker.version>
-    <gson.version>2.9.0</gson.version>
+    <spring.jdbc.version>5.1.8.RELEASE</spring.jdbc.version>
+    <dbcp2.version>2.6.0</dbcp2.version>
+    <disruptor.version>3.4.2</disruptor.version>
     <junit.version>3.8.1</junit.version>
     <start-class>com.ntw.oms.gateway.WebApplication</start-class>
   </properties>
@@ -24,7 +23,7 @@
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
-    <version>2.7.11</version>
+    <version>2.2.13.RELEASE</version>
   </parent>
 
   <dependencies>
@@ -36,32 +35,59 @@
     </dependency>
 
     <dependency>
-      <groupId>org.springframework.cloud</groupId>
-      <artifactId>spring-cloud-starter</artifactId>
-      <version>${spring.cloud.version}</version>
+      <groupId>javax.servlet</groupId>
+      <artifactId>javax.servlet-api</artifactId>
+      <version>${servletapi.version}</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
       <exclusions>
         <exclusion>
           <groupId>org.springframework.boot</groupId>
           <artifactId>spring-boot-starter-logging</artifactId>
         </exclusion>
+        <exclusion>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot-starter-tomcat</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-jetty</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-starter-netflix-zuul</artifactId>
+      <version>2.2.9.RELEASE</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.springframework.security</groupId>
+          <artifactId>spring-security-crypto</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.google.code.findbugs</groupId>
+          <artifactId>annotations</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.netflix.servo</groupId>
+          <artifactId>servo-core</artifactId>
+        </exclusion>
       </exclusions>
     </dependency>
 
     <dependency>
-      <groupId>org.springframework.cloud</groupId>
-      <artifactId>spring-cloud-starter-gateway</artifactId>
-      <version>${spring.cloud.version}</version>
-    </dependency>
-
-    <dependency>
       <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-webflux</artifactId>
+      <artifactId>spring-boot-starter-log4j2</artifactId>
     </dependency>
-
     <dependency>
-      <groupId>org.springframework.cloud</groupId>
-      <artifactId>spring-cloud-starter-circuitbreaker-reactor-resilience4j</artifactId>
-      <version>${circuitbreaker.version}</version>
+      <groupId>com.lmax</groupId>
+      <artifactId>disruptor</artifactId>
+      <version>${disruptor.version}</version>
     </dependency>
 
     <dependency>
@@ -74,7 +100,7 @@
     <dependency>
       <groupId>com.google.code.gson</groupId>
       <artifactId>gson</artifactId>
-      <version>${gson.version}</version>
+      <version>2.8.5</version>
     </dependency>
 
   </dependencies>
@@ -83,9 +109,8 @@
     <finalName>gateway</finalName>
     <plugins>
       <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-war-plugin</artifactId>
-        <version>3.3.2</version>
+        <version>3.3.1</version>
         <configuration>
           <attachClasses>true</attachClasses>
           <classesClassifier>classes</classesClassifier>
@@ -94,7 +119,6 @@
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
-        <version>${project.parent.version}</version>
       </plugin>
     </plugins>
   </build>

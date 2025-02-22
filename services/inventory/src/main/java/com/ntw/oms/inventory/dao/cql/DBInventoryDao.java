@@ -75,11 +75,12 @@ public class DBInventoryDao implements InventoryDao {
     @Override
     public Inventory getInventory(String productId) {
         String selectCql = "select * from inventory where productId='" + productId + "'";
-        Inventory inventory = getCassandraOperations().selectOne(selectCql, Inventory.class);
-        if (inventory == null) {
+        DBInventory dbInventory = getCassandraOperations().selectOne(selectCql, DBInventory.class);
+        if (dbInventory == null) {
             logger.debug("No inventory found; userId={}", selectCql);
             return null;
         }
+        Inventory inventory = dbInventory.getInventory();
         logger.debug("Fetched inventory; context={}", inventory);
         return inventory;
     }
@@ -103,8 +104,9 @@ public class DBInventoryDao implements InventoryDao {
 
     @Override
     public boolean insertInventory(Inventory inventory) {
+        DBInventory dbInventory = DBInventory.createInventory(inventory);
         try {
-            Inventory retInventory = getCassandraOperations().insert(inventory);
+            DBInventory retInventory = getCassandraOperations().insert(dbInventory);
             if (retInventory == null) {
                 logger.error("Unable to insert inventory; context={}", inventory);
                 return false;

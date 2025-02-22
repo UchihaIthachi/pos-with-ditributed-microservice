@@ -1,86 +1,74 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 OMS_ROOT=`pwd`
+cd $OMS_ROOT
 
-source $OMS_ROOT/bin/common.sh
+TARGET=$1
 
-declare -a service_containers=("discovery" "gateway" "lb-services" "admin" "auth" "product" "order" "inventory")
+declare -a service_containers=("eureka" "gateway-svc" "lb-services" "admin-svc" "auth-svc" "product-svc" "order-svc" "inventory-svc")
 declare -a web_containers=("web" "lb-web")
 declare -a data_containers=("cassandra" "postgres" "rabbitmq" "redis")
 declare -a infra_containers=("elasticsearch" "kibana" "jaeger-collector" "jaeger-query" "jaeger-agent" "fluentd" "es-exporter" "redis-exporter" "pg-exporter" "prometheus")
 
-declare -A commands=( ["start"]="up -d" ["stop"]="stop" ["status"]="ps -a" )
-declare -A wait_durations=( ["start"]=3 ["stop"]=0 )
-
-function exec_command {
-    task=$1
-    command="docker-compose ${commands["$task"]}"
-    wait_duration=${wait_durations[$task]}
-    shift;
-    containers=$@
-
-    echo "$task: $containers"
-    if [ "$task" != "start" ]; then
-        $(echo $command ${containers[@]})
-	if [ "$task" == "stop" ]; then
-	    docker-compose rm -f
-	fi
-    else
-	for container in $containers; do
-	    echo "Executing: $command $container"
-	    $($command $container 1> /dev/null 2> /dev/null)
-	    if [ $? -ne 0 ]; then
-		echo "Error executing $command $container"
-		exit 1
-	    fi
-	    if [[ $wait_duration -gt 0 ]]; then
-		docker-compose ps $container
-		echo "Waiting for ${wait_duration}s" 
-		sleep $wait_duration
-	fi
-	done
-    fi
-}
+echo "-- Start --"
 
 
-function exec_task {
-    task=$1
-    container=$2
+############################## Start ####################################
+
+function do_start {
+    echo "-- Run Containers --"
     cd $OMS_ROOT/docker
-
-    if [ -n "$container" ]; then
-	     exec_command $task $container
+    if [ "$1" == "infra" ]; then
+	do_start_infra
+    elif [ "$1" == "app" ]; then
+	do_start_app
     else
-	while true; do
-	    echo "Choose containers to start."
-	    echo "1> Infra Containers"
-	    echo "2> Data Containers"
-	    echo "3> Service Containers"
-	    echo "4> Web Containers"
-	    echo "5> All Containers"
-	    printf "Choice: "
-	    read choice
-	    case $choice in
-		1 ) exec_command $task "${infra_containers[@]}";
-		    break;;
-		2 ) exec_command $task "${data_containers[@]}";
-		    break;;
-		3 ) exec_command $task "${service_containers[@]}";
-		    break;;
-		4 ) exec_command $task "${web_containers[@]}";
-		    break;;
-		5 ) echo "$task all containers";
-		    exec_command $task "${infra_containers[@]}";
-		    exec_command $task "${data_containers[@]}";
-		    exec_command $task "${service_containers[@]}";
-		    exec_command $task "${web_containers[@]}";
-		    break;;
-		* ) echo "Incorrect choice"
-	    esac
-	done
+	do_start_infra
+	do_start_app
+    fi
+    echo "-- Done --"
+}
+
+function do_start_infra {
+    echo "-- Run Infra Containers --"
+    for container in "${infra_containers[@]}"
+    do
+	do_start_one $container
+	sleep 5s
+    done    
+    echo "-- Done --"
+}
+
+function do_start_app {
+    echo "-- Run App Containers --"
+    for container in "${data_containers[@]}"
+    do
+	do_start_one $container
+	sleep 5s
+    done    
+    for container in "${web_containers[@]}"
+    do
+	do_start_one $container
+	sleep 5s
+    done    
+    for container in "${service_containers[@]}"
+    do
+	do_start_one $container
+	sleep 30s
+    done    
+    echo "-- Done --"
+}
+
+function do_start_one {
+    docker-compose up -d $1
+    if [ $? != 0 ]; then
+	echo "Build failed - Run $1 container failed"
+	exit -1;
     fi
 }
 
+
+############################## Test ####################################
 
 function do_test {
     echo "-- Run tests --"
@@ -95,44 +83,163 @@ function do_test {
 }
 
 
-function do_update {
+############################## Stop ####################################
 
-    component=$1
-    container=$component
-
+function do_stop {
+    echo "-- Stop containers --"
     cd $OMS_ROOT/docker
-    exec_task stop $container
+    if [ "$1" == "infra" ]; then
+	do_stop_infra
+    elif [ "$1" == "app" ]; then
+	do_stop_app $2
+    elif [ "$1" == "all" ]; then
+	do_stop_app
+	do_stop_infra
+    else
+	echo "Incorrect parameter. Specify infra, app, all ?"
+	exit -1;
+    fi
+    docker-compose rm -f
+    echo "-- Done --"
+}
 
-    cd $OMS_ROOT
-    ./build-system.sh build $component
-    ./build-system.sh images $component
+function do_stop_infra {
+    echo "-- Stop Infra Containers --"
+#    for container in "${infra_containers[@]}"
+#    do
+#	do_stop_one $container
+#    done    
+    do_stop_one "$(echo ${infra_containers[@]})"
+    echo "-- Done --"
+}
 
-    cd $OMS_ROOT/docker
-    exec_task start $container
+function do_stop_app {
+    echo "-- Stop App Containers --"
+#    for (( index=${#service_containers[@]}-1 ; index>=0 ; index-- )) ;
+#    do
+#	do_stop_one "${service_containers[index]}"
+#    done    
+#    for (( index=${#web_containers[@]}-1 ; index>=0 ; index-- )) ;
+#    do
+#	do_stop_one "${web_containers[index]}"
+#    done    
+#    for (( index=${#data_containers[@]}-1 ; index>=0 ; index-- )) ;
+#    do
+#	do_stop_one "${data_containers[index]}"
+    #    done
+    if [ "$1" == "services" ]; then
+	do_stop_one "$(echo ${service_containers[@]})"
+    elif [ "$1" == "web" ]; then
+	do_stop_one "$(echo ${web_containers[@]})"
+    else
+	do_stop_one "$(echo ${service_containers[@]})"
+	do_stop_one "$(echo ${web_containers[@]})"
+	do_stop_one "$(echo ${data_containers[@]})"
+    fi
+    echo "-- Done --"
+}
 
+function do_stop_one {
+    docker-compose stop $1
+    if [ $? != 0 ]; then
+	echo "Build failed - Stop $1 container failed"
+	exit -1;
+    fi
 }
 
 
+############################## Update ####################################
+
+function do_update {
+    
+    COMPONENT=$1
+
+    if [ "$COMPONENT" == "service" ]; then
+	SVC=$2
+	cd $OMS_ROOT/services/${SVC}
+	mvn clean package
+	if [ $? != 0 ]; then
+	    echo "Build failed!! .. Exiting"
+	    exit -1;
+	fi
+	cp ./target/${SVC}.war ../target
+	CONTAINER=$2-svc
+	COMPONENT=services
+
+    elif [ "$COMPONENT" == "web" ]; then
+
+	cd $OMS_ROOT/web
+	./create-build.sh
+	CONTAINER=web
+	
+    else
+
+	echo "Incorrect component name. Specify service or web.";
+	exit -1;
+
+    fi
+
+    cd $OMS_ROOT/staging/bin
+    ./pull-artifacts.sh
+
+    cd $OMS_ROOT/docker/bin
+    ./pull-artifacts.sh
+
+    cd $OMS_ROOT/docker
+    docker-compose build ${COMPONENT}
+    docker-compose stop ${CONTAINER}
+    docker-compose rm -f ${CONTAINER}
+    docker-compose up -d ${CONTAINER}
+}
+
+
+############################## Status ####################################
 
 function get_status {
     cd $OMS_ROOT/docker
-    docker-compose ps $1
+    watch -n 3 docker-compose ps
 }
 
 
-#-------------Main---------------
 
-if [ "$1" == "start" ]; then
-    exec_task start $2
-elif [ "$1" == "update" ]; then
-    do_update $2
-elif [ "$1" == "test" ]; then
+############################## All ####################################
+
+function do_all {
+    do_start 
+    i="0"
+    RESPONSE=$(curl -s -I -X GET http://localhost:9000/GatewaySvc/status | head -n 1)
+    echo "$i - $RESPONSE"
+    while [ "$(echo $RESPONSE | cut -d$' ' -f2)" != "200" ] && [ $i -lt 120 ];
+    do sleep 5;
+       RESPONSE=$(curl -s -I -X GET http://localhost:9000/GatewaySvc/status | head -n 1)
+       i=$[$i+5]
+       echo "$i - $RESPONSE"
+    done;
+    sleep 5
     do_test
-elif [ "$1" == "stop" ]; then
-    exec_task stop $2
-elif [ "$1" == "status" ]; then
-    exec_task status $2
+    do_stop
+}
+
+
+############################## Main ####################################
+
+if [ "$TARGET" == "start" ]; then
+    do_start $2
+elif [ "$TARGET" == "update" ]; then
+    do_update $2 $3
+elif [ "$TARGET" == "test" ]; then
+    do_test
+elif [ "$TARGET" == "stop" ]; then
+    do_stop $2
+elif [ "$TARGET" == "status" ]; then
+    get_status
 else
-    echo "Usage: Arg 1 must be: start | update | test | stop | status"
-    exit 1;
+    read -p "Do you wish to start all: " yn
+    case $yn in
+        [Yy]* ) do_all; break;;
+        [Nn]* ) exit;;
+        * ) do_all;;
+    esac    
 fi
+    
+echo "-- Done --"

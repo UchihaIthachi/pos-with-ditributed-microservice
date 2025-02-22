@@ -43,9 +43,7 @@ if [ -n "$ERROR_MESSAGE" ]; then
     echo "################ ERROR ###################"
     echo "$ERROR_MESSAGE"
     echo "##########################################"
-    exit 1
+    exit -1
 fi
 
 echo
-
-exit 0
