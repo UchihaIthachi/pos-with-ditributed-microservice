@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: trivy-vulnerability-scan
+  namespace: security
+spec:
+  schedule: "0 2 * * *" # Run daily at 2 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          # serviceAccountName: trivy-scanner # Not using a dedicated SA for this iteration
+          restartPolicy: OnFailure
+          containers:
+            - name: trivy-scanner
+              image: aquasec/trivy:0.49.1
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  echo "Starting Trivy vulnerability scan..."
+                  set -e # Exit immediately if a command exits with a non-zero status (e.g., trivy command fails for reasons other than finding issues).
+
+                  # Image names are derived from the project's deployment YAMLs.
+                  # Using 'your-org' as placeholder for registry/organization.
+                  # Using ':latest' as a placeholder tag, actual tags would be dynamic in a real CI/CD.
+                  IMAGES_TO_SCAN="\
+                  your-org/admin-svc:latest \
+                  your-org/auth-svc:latest \
+                  your-org/gateway-svc:latest \
+                  your-org/inventory-svc:latest \
+                  your-org/order-svc:latest \
+                  your-org/product-svc:latest \
+                  your-org/spa-app:latest \
+                  your-org/lb-web:latest \
+                  your-org/web-app:latest \
+                  postgres:latest \
+                  cassandra:latest"
+
+                  echo "Scanning the following images: $IMAGES_TO_SCAN"
+
+                  for image in $IMAGES_TO_SCAN; do
+                    echo "Scanning $image..."
+                    # Scan for vulnerabilities, format output as a table.
+                    # Use --exit-code 0 so the script doesn't terminate via 'set -e' if vulnerabilities are found.
+                    # The job should only fail if Trivy itself encounters an error during the scan.
+                    trivy image --scanners vuln --quiet --format table --exit-code 0 "$image"
+                    echo "-------------------------------------------"
+                  done
+                  echo "Trivy scan complete."
+              # Add resource requests/limits if necessary
+              # resources:
+              #   requests:
+              #     cpu: "500m"
+              #     memory: "512Mi"
+              #   limits:
+              #     cpu: "1"
+              #     memory: "1Gi"

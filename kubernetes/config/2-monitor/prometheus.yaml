@@ -31,14 +31,13 @@ spec:
       ports:
         - protocol: TCP
           containerPort: 9090
-      args: ["--config.file=/etc/prometheus/prometheus.yml"]
+      args:
+        - "--config.file=/etc/prometheus/prometheus.yml"
+        - "--web.enable-lifecycle" # Added to allow config reloading via HTTP
+        - "--alertmanager.url=http://alertmanager:9093"
       volumeMounts:
-      - name: config-volume-1
-        mountPath: /etc/prometheus/prometheus.yml
-        subPath: prometheus.yml
-      - name: config-volume-2
-        mountPath: /etc/prometheus/rules.yml
-        subPath: rules.yml
+      - name: config-volume
+        mountPath: /etc/prometheus
       livenessProbe:
         httpGet:
           path: /
@@ -51,9 +50,39 @@ spec:
         initialDelaySeconds: 30
         periodSeconds: 2
   volumes:
-    - name: config-volume-1
+    - name: config-volume # Consolidated volume mount
       configMap:
         name: prometheus-config
-    - name: config-volume-2
-      configMap:
-        name: prometheus-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitor
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+    alerting:
+      alertmanagers:
+      - static_configs:
+        - targets:
+          - alertmanager.monitor.svc.cluster.local:9093
+    rule_files:
+      - /etc/prometheus/rules.yml
+    scrape_configs:
+      - job_name: 'prometheus'
+        static_configs:
+        - targets: ['localhost:9090']
+      # Add other scrape configs here if needed
+
+  rules.yml: |
+    groups:
+    - name: example
+      rules:
+      - alert: TestAlert
+        expr: vector(1)
+        labels:
+          severity: 'critical'
+        annotations:
+          summary: 'This is a test alert'
