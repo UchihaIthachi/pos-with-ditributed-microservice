@@ -1,6 +1,10 @@
-# Getting Started with Create React App
+## Order Management System - SPA
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This Single Page Application (SPA) serves as a primary user interface for the Order Management System. It allows users to (describe specific SPA functionalities, e.g., browse products, manage orders, interact with their accounts).
+
+This SPA interacts with the backend microservices via the `gateway-svc`. In a local development environment, ensure that the Gateway service is running and accessible. For production deployment, the SPA is containerized (see `../docker/spa/Dockerfile`) and served as described in the main [System Overview Document](../../SYSTEM_OVERVIEW.md).
+
+Refer to the `spa/.env` file for any environment-specific configurations used during development.
 
 ## Available Scripts
 
